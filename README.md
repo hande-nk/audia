@@ -34,5 +34,12 @@ Injected waves are a **test harness**, labeled on screen. The synthetic board is
 - Real: the pipeline, band powers, scoring, hysteresis controller, dashboard.
 - Not real yet: any claim about a person's focus. That starts in Phase 2 with a Muse 2 (`--muse`) and labeled sessions.
 
+## DIY hardware
+I'm building the EEG front end myself. See [HARDWARE.md](HARDWARE.md) for the plan, the safety rules, and the gates each stage has to pass.
+```bash
+python audia_live.py --serial sim                    # simulated board over serial, no parts
+python audia_live.py --serial /dev/cu.usbmodemXXXX   # my board
+```
+
 ## Next
 Phase 1: swap the synth for a local music folder analyzed with librosa (BPM, energy), and pick tracks by mode.
