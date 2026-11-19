@@ -1,0 +1,4 @@
+brainflow>=5.15
+numpy
+matplotlib
+sounddevice   # optional, only for --sound
