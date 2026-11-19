@@ -11,6 +11,8 @@ Run:
     python audia_live.py --sound      # same, plus reactive audio
     python audia_live.py --headless   # terminal only, 25 seconds
     python audia_live.py --headless --script --seconds 65   # loop self-test
+    python audia_live.py --serial sim       # simulated DIY board over serial
+    python audia_live.py --serial /dev/cu.usbmodem101   # your own board
 
 Keys in the dashboard window (TEST HARNESS, clearly fake signal):
     f  inject a 20 Hz beta wave   -> should push the score up (FOCUS)
@@ -192,12 +194,18 @@ class Synth:
 
 
 # --------------------------------------------------------------- runners
+def source_label(brain):
+    if getattr(brain, "label", None):
+        return brain.label
+    return "SYNTHETIC SIGNAL" if brain.board_id == BoardIds.SYNTHETIC_BOARD else "LIVE"
+
+
 def run_headless(brain, seconds, synth=None, script=False):
     scorer, ctrl = Scorer(), Controller()
     t0 = time.time()
     # --script: beta from 20-35 s, alpha from 40-60 s, to prove the loop reacts
     plan = [(20, 35, "beta"), (40, 60, "alpha")] if script else []
-    print(f"Audia | {BoardShim.get_device_name(brain.board_id)} | fs={brain.fs} Hz")
+    print(f"Audia | {source_label(brain)} | fs={brain.fs} Hz")
     print(" t   alpha  beta  theta  index  score  mode     why")
     while time.time() - t0 < seconds:
         time.sleep(UPDATE_SEC)
@@ -269,7 +277,7 @@ def run_dashboard(brain, synth=None):
             sig = sig / (np.std(sig) + 1e-9)
             ax_wave.plot(t, sig + i * 5, lw=0.7, color=MINT if i % 2 == 0 else "#5fd3ff")
         ax_wave.set_yticks([]); ax_wave.set_xlabel("seconds")
-        ax_wave.set_title("raw EEG, 4 channels, last 6 s", loc="left", fontsize=9, color="#8a929c")
+        ax_wave.set_title(f"raw EEG, {len(brain.eeg)} channel(s), last {WINDOW_SEC} s", loc="left", fontsize=9, color="#8a929c")
 
         # 2. band powers
         ax_band.clear(); ax_band.set_facecolor(BG)
@@ -284,6 +292,10 @@ def run_dashboard(brain, synth=None):
         ax_now.text(0.0, 0.78, mode, fontsize=34, color=color, weight="bold")
         ax_now.text(0.0, 0.48, f"{MODES[mode]['bpm']} BPM target", fontsize=13, color=FG)
         ax_now.text(0.0, 0.25, f"why: {why}", fontsize=10, color="#8a929c")
+        if hasattr(brain, "signal_ok"):
+            ok = brain.signal_ok(data)
+            ax_now.text(0.62, 0.78, "● signal OK" if ok else "● check contact",
+                        fontsize=11, color=MINT if ok else "#ff8a5c")
         tag = f"TEST INJECTION: {brain.inject.upper()} WAVE" if brain.inject else ""
         ax_now.text(0.0, 0.03, tag, fontsize=10, color="#ff8a5c")
 
@@ -301,7 +313,7 @@ def run_dashboard(brain, synth=None):
         ax_score.set_title("engagement vs. your baseline (50 = normal)", loc="left",
                            fontsize=9, color="#8a929c")
 
-        src = "SYNTHETIC SIGNAL" if brain.board_id == BoardIds.SYNTHETIC_BOARD else "LIVE"
+        src = source_label(brain)
         cal = " | calibrating..." if score is None else ""
         title.set_text(f"AUDIA  ·  {src}  ·  {el:4.0f}s{cal}    keys: f=beta  r=alpha  n=off")
 
@@ -318,10 +330,16 @@ def main():
     ap.add_argument("--sound", action="store_true", help="play reactive synth")
     ap.add_argument("--muse", action="store_true", help="use a real Muse 2 (Phase 2)")
     ap.add_argument("--mac", default="", help="Muse MAC address, optional")
+    ap.add_argument("--serial", default="",
+                    help="DIY board serial port, or 'sim' for the simulator")
     args = ap.parse_args()
 
     board = BoardIds.MUSE_2_BOARD if args.muse else BoardIds.SYNTHETIC_BOARD
-    brain = Brain(board, args.mac)
+    if args.serial:
+        from diy_board import SerialBrain
+        brain = SerialBrain(args.serial, window_sec=WINDOW_SEC)
+    else:
+        brain = Brain(board, args.mac)
     synth = None
     if args.sound:
         try:

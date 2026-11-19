@@ -1,4 +1,5 @@
 brainflow>=5.15
 numpy
 matplotlib
+pyserial      # DIY board input
 sounddevice   # optional, only for --sound
